@@ -3,11 +3,16 @@ package validator
 import (
 	"os"
 	"path/filepath"
+	"strings"
+
+	"golang.org/x/net/idna"
+	"golang.org/x/net/publicsuffix"
 )
 
 // DisposableValidator handles disposable email validation
 type DisposableValidator struct {
-	disposableDomains map[string]struct{}
+	disposableDomains  map[string]struct{}
+	registrableDomains map[string]struct{}
 }
 
 // NewDisposableValidator creates a new instance of DisposableValidator using the config file
@@ -37,11 +42,20 @@ func NewDisposableValidator() (*DisposableValidator, error) {
 // NewDisposableValidatorWithDomains creates a new instance of DisposableValidator with a custom list of domains
 func NewDisposableValidatorWithDomains(domains []string) *DisposableValidator {
 	disposableDomains := make(map[string]struct{}, len(domains))
+	registrableDomains := make(map[string]struct{}, len(domains))
 	for _, domain := range domains {
-		disposableDomains[domain] = struct{}{}
+		normalized := normalizeDomain(domain)
+		if normalized == "" {
+			continue
+		}
+		disposableDomains[normalized] = struct{}{}
+		if registrable, err := publicsuffix.EffectiveTLDPlusOne(normalized); err == nil && registrable == normalized {
+			registrableDomains[registrable] = struct{}{}
+		}
 	}
 	return &DisposableValidator{
-		disposableDomains: disposableDomains,
+		disposableDomains:  disposableDomains,
+		registrableDomains: registrableDomains,
 	}
 }
 
@@ -56,6 +70,30 @@ func NewDisposableValidatorWithReader(reader DomainReader) (*DisposableValidator
 
 // Validate checks if the email domain is from a disposable email provider
 func (v *DisposableValidator) Validate(domain string) bool {
-	_, exists := v.disposableDomains[domain]
+	normalized := normalizeDomain(domain)
+	if normalized == "" {
+		return false
+	}
+	if _, exists := v.disposableDomains[normalized]; exists {
+		return true
+	}
+	registrable, err := publicsuffix.EffectiveTLDPlusOne(normalized)
+	if err != nil {
+		return false
+	}
+	_, exists := v.registrableDomains[registrable]
 	return exists
+}
+
+func normalizeDomain(domain string) string {
+	trimmed := strings.TrimSpace(domain)
+	trimmed = strings.TrimRight(trimmed, ".")
+	if trimmed == "" {
+		return ""
+	}
+	ascii, err := idna.Lookup.ToASCII(trimmed)
+	if err != nil {
+		return strings.ToLower(trimmed)
+	}
+	return strings.ToLower(ascii)
 }

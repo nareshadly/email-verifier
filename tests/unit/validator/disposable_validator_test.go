@@ -39,6 +39,38 @@ func TestDisposableValidatorWithStaticReader(t *testing.T) {
 	}
 }
 
+func TestDisposableValidatorNormalizationAndSubdomains(t *testing.T) {
+	testDomains := []string{"TempMail.com", "sub.mailinator.com"}
+	reader := validator.NewStaticDomainReader(testDomains)
+
+	v, err := validator.NewDisposableValidatorWithReader(reader)
+	if err != nil {
+		t.Fatalf("Failed to create validator: %v", err)
+	}
+
+	tests := []struct {
+		domain string
+		want   bool
+	}{
+		{"tempmail.com", true},
+		{"TEMpMail.com", true},
+		{"tempmail.com.", true},
+		{"foo.tempmail.com", true},
+		{"sub.mailinator.com", true},
+		{"other.mailinator.com", false},
+		{"mailinator.com", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.domain, func(t *testing.T) {
+			got := v.Validate(tt.domain)
+			if got != tt.want {
+				t.Errorf("Validate(%q) = %v, want %v", tt.domain, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDisposableValidatorWithFileReader(t *testing.T) {
 	// Create a file reader with the config file
 	reader := validator.NewFileDomainReader("../../../config/disposable_domains.txt")
