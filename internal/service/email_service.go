@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"emailvalidator/internal/model"
+	"emailvalidator/pkg/cache"
 	"emailvalidator/pkg/validator"
 )
 
@@ -24,9 +25,14 @@ type EmailService struct {
 	requests            int64
 }
 
-// NewEmailService creates a new instance of EmailService
+// NewEmailService creates a new instance of EmailService without Redis cache
 func NewEmailService() (*EmailService, error) {
-	emailValidator, err := validator.NewEmailValidator()
+	return NewEmailServiceWithCache(nil)
+}
+
+// NewEmailServiceWithCache creates a new instance of EmailService with optional Redis cache
+func NewEmailServiceWithCache(redisCache cache.Cache) (*EmailService, error) {
+	emailValidator, err := validator.NewEmailValidatorWithCache(redisCache)
 	if err != nil {
 		return nil, err
 	}

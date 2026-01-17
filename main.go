@@ -10,14 +10,43 @@ import (
 
 	"emailvalidator/internal/api"
 	"emailvalidator/internal/service"
+	"emailvalidator/pkg/cache"
 	"emailvalidator/pkg/monitoring"
 )
 
 func main() {
+	// Initialize Redis cache if REDIS_URL is provided
+	var redisCache cache.Cache
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL != "" {
+		var err error
+		redisCache, err = cache.NewRedisCache(redisURL)
+		if err != nil {
+			log.Printf("Warning: Failed to connect to Redis at %s: %v. Using in-memory cache instead.", redisURL, err)
+			redisCache = nil
+		} else {
+			log.Printf("Connected to Redis at %s", redisURL)
+		}
+	} else {
+		log.Println("REDIS_URL not set, using in-memory cache")
+	}
+
 	// Create service instances
-	emailService, err := service.NewEmailService()
+	emailService, err := service.NewEmailServiceWithCache(redisCache)
 	if err != nil {
+		if redisCache != nil {
+			_ = redisCache.Close()
+		}
 		log.Fatalf("Failed to initialize email service: %v", err)
+	}
+
+	// Defer Redis cleanup after all fatal error checks
+	if redisCache != nil {
+		defer func() {
+			if err := redisCache.Close(); err != nil {
+				log.Printf("Warning: Failed to close Redis connection: %v", err)
+			}
+		}()
 	}
 
 	// Create and configure HTTP handler
@@ -70,6 +99,7 @@ func main() {
 	}
 
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		log.Printf("Server failed: %v", err)
+		// Exit with error code - defers will run before exit
 	}
 }

@@ -3,6 +3,8 @@ package validator
 import (
 	"strings"
 	"time"
+
+	"emailvalidator/pkg/cache"
 )
 
 // EmailValidator provides methods for validating email addresses
@@ -16,7 +18,17 @@ type EmailValidator struct {
 
 // NewEmailValidator creates a new instance of EmailValidator
 func NewEmailValidator() (*EmailValidator, error) {
-	cacheManager := NewDomainCacheManager(time.Hour)
+	return NewEmailValidatorWithCache(nil)
+}
+
+// NewEmailValidatorWithCache creates a new instance of EmailValidator with optional Redis cache
+func NewEmailValidatorWithCache(redisCache cache.Cache) (*EmailValidator, error) {
+	var cacheManager *DomainCacheManager
+	if redisCache != nil {
+		cacheManager = NewDomainCacheManagerWithRedis(time.Hour, redisCache)
+	} else {
+		cacheManager = NewDomainCacheManager(time.Hour)
+	}
 	resolver := &DefaultResolver{timeout: 2 * time.Second}
 
 	disposableValidator, err := NewDisposableValidator()
