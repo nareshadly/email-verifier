@@ -1,6 +1,8 @@
 package validator
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -49,6 +51,34 @@ func (v *SMTPValidator) SetTimeout(timeout time.Duration) {
 // SetDialer sets a custom dialer for testing
 func (v *SMTPValidator) SetDialer(dialer func(network, address string, timeout time.Duration) (net.Conn, error)) {
 	v.dialer = dialer
+}
+
+// CheckCatchAll checks if the domain accepts emails for non-existent addresses
+func (v *SMTPValidator) CheckCatchAll(domain string) (bool, error) {
+	// Generate a random email address that is statistically unlikely to exist
+	randomBytes := make([]byte, 8)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return false, fmt.Errorf("failed to generate random email: %w", err)
+	}
+	randomLocalPart := hex.EncodeToString(randomBytes)
+	randomEmail := fmt.Sprintf("%s@%s", randomLocalPart, domain)
+
+	// Validate this random email
+	result := v.ValidateMailbox(randomEmail)
+
+	// If the random email is valid, then the domain is a catch-all
+	if result.IsValid {
+		return true, nil
+	}
+
+	// If it failed with a permanent error (like 550), it's not a catch-all
+	// If it failed with a retryable error, we can't be sure, but we'll assume not catch-all for now
+	// or return error.
+	if result.IsRetryable {
+		return false, result.Error
+	}
+
+	return false, nil
 }
 
 // ValidateMailbox checks if the mailbox exists on the remote server

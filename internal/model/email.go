@@ -15,6 +15,7 @@ const (
 	ValidationStatusInvalidDomain ValidationStatus = "INVALID_DOMAIN"
 	ValidationStatusNoMXRecords   ValidationStatus = "NO_MX_RECORDS"
 	ValidationStatusDisposable    ValidationStatus = "DISPOSABLE"
+	ValidationStatusRisky         ValidationStatus = "RISKY"
 )
 
 // ValidationResults represents the results of various validation checks
@@ -25,6 +26,7 @@ type ValidationResults struct {
 	MailboxExists bool `json:"mailbox_exists"`
 	IsDisposable  bool `json:"is_disposable"`
 	IsRoleBased   bool `json:"is_role_based"`
+	IsCatchAll    bool `json:"is_catch_all"`
 }
 
 // EmailValidationRequest represents a request to validate a single email

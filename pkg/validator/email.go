@@ -115,6 +115,25 @@ func (v *EmailValidator) ValidateMailbox(email string) (bool, bool, string) {
 	return result.IsValid, result.IsRetryable, result.Status
 }
 
+// CheckCatchAll checks if the domain is a catch-all domain
+func (v *EmailValidator) CheckCatchAll(domain string) (bool, error) {
+	// Check cache via domainValidator's cacheManager
+	if isCatchAll, checked := v.domainValidator.cacheManager.GetCatchAll(domain); checked {
+		return isCatchAll, nil
+	}
+
+	// Perform check
+	isCatchAll, err := v.smtpValidator.CheckCatchAll(domain)
+	if err != nil {
+		return false, err
+	}
+
+	// Update cache
+	v.domainValidator.cacheManager.SetCatchAll(domain, isCatchAll)
+
+	return isCatchAll, nil
+}
+
 // IsDisposable checks if the email domain is from a disposable email provider
 func (v *EmailValidator) IsDisposable(domain string) bool {
 	return v.disposableValidator.Validate(domain)
@@ -155,6 +174,13 @@ func (v *EmailValidator) CalculateScore(validations map[string]bool) int {
 				score += weight
 			}
 		}
+	}
+
+	// Penalty for catch-all domains
+	if isCatchAll, exists := validations["is_catch_all"]; exists && isCatchAll {
+		// Reduce score significantly as we can't verify mailbox existence
+		// If score was 100, this brings it down to 80 (Probably Valid range) or lower
+		score -= 20
 	}
 
 	return score

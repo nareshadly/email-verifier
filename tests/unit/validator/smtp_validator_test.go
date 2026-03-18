@@ -1,4 +1,4 @@
-package validator_test
+package validatortest
 
 import (
 	"net"

@@ -42,6 +42,7 @@ type DomainValidationService interface {
 // MailboxValidator defines the contract for verifying mailbox existence
 type MailboxValidator interface {
 	ValidateMailbox(email string) (isValid bool, isRetryable bool, status string)
+	CheckCatchAll(domain string) (bool, error)
 }
 
 // AliasDetector defines the contract for detecting email aliases
