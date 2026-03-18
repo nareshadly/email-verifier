@@ -123,23 +123,31 @@ func (s *EmailService) ValidateEmail(email string) model.EmailValidationResponse
 	mailboxExists := false
 	if hasMX {
 		if s.mailboxValidator != nil {
-			// Perform SMTP check
-			isValid, isRetryable, _ := s.mailboxValidator.ValidateMailbox(email)
-			
-			if isValid {
-				mailboxExists = true
-			} else if isRetryable {
-				// If retryable (4xx or network error), we can't be sure it doesn't exist.
-				// For scoring purposes, maybe treat it neutrally or slightly positive?
-				// But user says 421 -> UNKNOWN (retry).
-				// We'll set mailboxExists to false but handle status carefully.
-				// Actually, if we set it to false, score will drop.
-				// If we want to return "ProbablyValid", we might need to adjust logic.
-				// For now, let's keep it simple: strict check.
-				mailboxExists = false 
+			// Check if domain is catch-all
+			// We ignore error here as it defaults to false (safe fallback)
+			isCatchAll, _ := s.mailboxValidator.CheckCatchAll(domain)
+			if isCatchAll {
+				response.Validations.IsCatchAll = true
+				mailboxExists = true // Server accepts all emails
 			} else {
-				// 550 Invalid
-				mailboxExists = false
+				// Perform SMTP check
+				isValid, isRetryable, _ := s.mailboxValidator.ValidateMailbox(email)
+				
+				if isValid {
+					mailboxExists = true
+				} else if isRetryable {
+					// If retryable (4xx or network error), we can't be sure it doesn't exist.
+					// For scoring purposes, maybe treat it neutrally or slightly positive?
+					// But user says 421 -> UNKNOWN (retry).
+					// We'll set mailboxExists to false but handle status carefully.
+					// Actually, if we set it to false, score will drop.
+					// If we want to return "ProbablyValid", we might need to adjust logic.
+					// For now, let's keep it simple: strict check.
+					mailboxExists = false 
+				} else {
+					// 550 Invalid
+					mailboxExists = false
+				}
 			}
 		} else {
 			// Fallback behavior if no validator (legacy/testing)
@@ -173,6 +181,7 @@ func (s *EmailService) ValidateEmail(email string) model.EmailValidationResponse
 		"mailbox_exists": response.Validations.MailboxExists,
 		"is_disposable":  response.Validations.IsDisposable,
 		"is_role_based":  response.Validations.IsRoleBased,
+		"is_catch_all":   response.Validations.IsCatchAll,
 	}
 	response.Score = s.emailRuleValidator.CalculateScore(validationMap)
 
@@ -193,6 +202,8 @@ func (s *EmailService) ValidateEmail(email string) model.EmailValidationResponse
 		response.Score = 40 // Override score for no MX records case
 	case response.Validations.IsDisposable:
 		response.Status = model.ValidationStatusDisposable
+	case response.Validations.IsCatchAll:
+		response.Status = model.ValidationStatusRisky
 	case !response.Validations.MailboxExists:
 		// If MX exists but Mailbox doesn't
 		response.Status = model.ValidationStatusInvalid
