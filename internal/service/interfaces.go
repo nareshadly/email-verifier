@@ -39,6 +39,11 @@ type DomainValidationService interface {
 	ValidateDomainConcurrently(ctx context.Context, domain string) (exists, hasMX, isDisposable bool)
 }
 
+// MailboxValidator defines the contract for verifying mailbox existence
+type MailboxValidator interface {
+	ValidateMailbox(email string) (isValid bool, isRetryable bool, status string)
+}
+
 // AliasDetector defines the contract for detecting email aliases
 type AliasDetector interface {
 	// DetectAlias checks if the email is an alias and returns the canonical email if it is

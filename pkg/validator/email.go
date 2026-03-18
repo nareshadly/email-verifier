@@ -14,6 +14,7 @@ type EmailValidator struct {
 	roleValidator       *RoleValidator
 	disposableValidator *DisposableValidator
 	aliasDetector       *AliasDetector
+	smtpValidator       *SMTPValidator
 }
 
 // NewEmailValidator creates a new instance of EmailValidator
@@ -42,6 +43,7 @@ func NewEmailValidatorWithCache(redisCache cache.Cache) (*EmailValidator, error)
 		roleValidator:       NewRoleValidator(),
 		disposableValidator: disposableValidator,
 		aliasDetector:       NewAliasDetector(),
+		smtpValidator:       NewSMTPValidator(resolver),
 	}, nil
 }
 
@@ -60,12 +62,14 @@ func NewEmailValidatorWithResolver(resolver DNSResolver) (*EmailValidator, error
 		roleValidator:       NewRoleValidator(),
 		disposableValidator: disposableValidator,
 		aliasDetector:       NewAliasDetector(),
+		smtpValidator:       NewSMTPValidator(resolver),
 	}, nil
 }
 
 // SetResolver allows changing the DNS resolver
 func (v *EmailValidator) SetResolver(resolver DNSResolver) {
 	v.domainValidator = NewDomainValidator(resolver, v.domainValidator.cacheManager)
+	v.smtpValidator = NewSMTPValidator(resolver)
 }
 
 // SetCacheDuration sets how long domain lookup results are cached
@@ -103,6 +107,12 @@ func (v *EmailValidator) ValidateDomain(domain string) bool {
 // ValidateMXRecords checks if the domain has valid MX records
 func (v *EmailValidator) ValidateMXRecords(domain string) bool {
 	return v.domainValidator.ValidateMX(domain)
+}
+
+// ValidateMailbox checks if the mailbox exists on the remote server
+func (v *EmailValidator) ValidateMailbox(email string) (bool, bool, string) {
+	result := v.smtpValidator.ValidateMailbox(email)
+	return result.IsValid, result.IsRetryable, result.Status
 }
 
 // IsDisposable checks if the email domain is from a disposable email provider
