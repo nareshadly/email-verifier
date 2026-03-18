@@ -631,10 +631,10 @@ You can use the pre-built Docker image directly from Docker Hub:
 
 ```bash
 # Pull the latest image
-docker pull umutert/emailvalidator:latest
+docker pull nareshadly/emailvalidator:latest
 
 # Run the container
-docker run -p 8080:8080 umutert/emailvalidator:latest
+docker run -p 8080:8080 nareshadly/emailvalidator:latest
 ```
 
 For detailed instructions on setting up automated Docker image deployment, see [Docker Deployment Guide](docs/docker-deployment.md).
